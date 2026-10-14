@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>SGC Flujos — Panel Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#0a0a0a;color:#e8e8e8}
+:root{--green:#22c55e;--green-d:#16a34a;--bg:#0a0a0a;--bg1:#111;--bg2:#1a1a1a;--bg3:#222;--border:#2a2a2a;--text:#e8e8e8;--muted:#999;--dim:#666;--radius:12px;--danger:#ef4444;--warn:#fbbf24;--blue:#3b82f6}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-weight:600;font-size:.85rem;cursor:pointer;border:none;font-family:inherit;text-decoration:none;transition:all .15s}
+.btn-green{background:var(--green);color:#042713}.btn-green:hover{background:#fff}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}.btn-outline:hover{border-color:var(--green);color:var(--green)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-blue{background:var(--blue);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.card-title{font-size:1rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+input,select,textarea{width:100%;padding:9px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.9rem;font-family:inherit;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--green)}
+label{display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;color:var(--muted)}
+.hidden{display:none!important}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--bg3);color:#fff;padding:12px 24px;border-radius:8px;z-index:999;opacity:0;transition:opacity .3s}
+.toast.show{opacity:1}.toast.success{background:var(--green);color:#042713}.toast.error{background:var(--danger)}
+.nav{position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between}
+.nav-brand{font-weight:800;font-size:1.1rem;color:#fff;display:flex;align-items:center;gap:8px}
+.nav-brand .accent{color:var(--green)}
+.main{max-width:1000px;margin:0 auto;padding:24px 20px}
+.tabs{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap}
+.tab{padding:8px 16px;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;background:var(--bg1);border:1px solid var(--border);color:var(--muted);transition:all .15s}
+.tab.active{background:var(--green);color:#042713;border-color:var(--green)}
+.flujo-paso{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.flujo-paso-num{width:28px;height:28px;border-radius:50%;background:var(--green);color:#042713;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;flex-shrink:0}
+.flujo-paso-tipo{font-size:.7rem;padding:2px 8px;border-radius:6px;font-weight:600;text-transform:uppercase}
+.tipo-saludo{background:rgba(59,130,246,.15);color:#93c5fd}
+.tipo-pregunta{background:rgba(34,197,94,.15);color:#6ee7b7}
+.tipo-confirmacion{background:rgba(251,191,36,.15);color:#fcd34d}
+.tipo-crear_cita{background:rgba(168,85,247,.15);color:#c4b5fd}
+.flujo-paso-msg{flex:1;font-size:.82rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+.badge{display:inline-block;padding:3px 8px;border-radius:12px;font-size:.7rem;font-weight:600}
+.badge-green{background:rgba(34,197,94,.15);color:#6ee7b7}
+.badge-red{background:rgba(239,68,68,.15);color:#fca5a5}
+.badge-yellow{background:rgba(251,191,36,.15);color:#fcd34d}
+.plantilla-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .2s}
+.plantilla-card:hover{border-color:var(--green)}
+.plantilla-card.selected{border-color:var(--green);background:rgba(34,197,94,.05)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+<div style="background:var(--bg1);border:1px solid var(--border);border-radius:16px;padding:40px;max-width:380px;width:100%">
+<h2 style="text-align:center;margin-bottom:20px"><i class="fas fa-sitemap" style="color:var(--green)"></i> SGC Flujos</h2>
+<p style="text-align:center;color:var(--dim);font-size:.8rem;margin-bottom:16px">Sistema de Flujos de Agendamiento</p>
+<input type="text" id="loginUser" placeholder="Usuario (admin)" style="margin-bottom:10px" value="admin">
+<input type="password" id="loginPass" placeholder="Contraseña" style="margin-bottom:16px" value="admin123">
+<button class="btn btn-green" style="width:100%;justify-content:center" id="loginBtn" onclick="doLogin()">Entrar <i class="fas fa-arrow-right"></i></button>
+<p style="text-align:center;margin-top:16px;color:var(--dim);font-size:.75rem"><a href="https://sgc-saas.pages.dev/superadmin" style="color:var(--green)">← Volver a SGC SaaS</a></p>
+</div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+<nav class="nav">
+<div class="nav-brand"><i class="fas fa-sitemap" style="color:var(--green)"></i> SGC <span class="accent">Flujos</span></div>
+<div style="display:flex;gap:8px;align-items:center">
+<a href="https://sgc-saas.pages.dev/superadmin" class="btn btn-outline btn-sm"><i class="fas fa-arrow-left"></i> SuperAdmin</a>
+<a href="https://sgc-tienda.pages.dev/admin" class="btn btn-outline btn-sm"><i class="fas fa-store"></i> Tienda</a>
+<button class="btn btn-outline btn-sm" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Salir</button>
+</div>
+</nav>
+
+<div class="main">
+<div class="tabs">
+<div class="tab active" onclick="switchTab(event,'plantillas')"><i class="fas fa-clone"></i> Plantillas</div>
+<div class="tab" onclick="switchTab(event,'config')"><i class="fas fa-cog"></i> Config por Tenant</div>
+<div class="tab" onclick="switchTab(event,'editor')"><i class="fas fa-code"></i> Editor de Flujos</div>
+<div class="tab" onclick="switchTab(event,'sesiones')"><i class="fas fa-history"></i> Sesiones</div>
+</div>
+
+<!-- TAB: PLANTILLAS -->
+<div id="tab-plantillas">
+<div class="card">
+<div class="card-title"><i class="fas fa-clone"></i> Plantillas Predefinidas
+<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="loadPlantillas()"><i class="fas fa-sync"></i></button>
+</div>
+<div style="margin-bottom:12px"><label>Tenant</label><select id="plantillaTenant" onchange="loadConfig()"></select></div>
+<div id="plantillasList"><p style="text-align:center;color:var(--dim);padding:20px">Cargando...</p></div>
+</div>
+</div>
+
+<!-- TAB: CONFIG -->
+<div id="tab-config" class="hidden">
+<div class="card">
+<div class="card-title"><i class="fas fa-cog"></i> Configuración de Flujo por Tenant</div>
+<div class="grid2">
+<div><label>Tenant</label><select id="configTenant" onchange="loadConfigDetail()"></select></div>
+<div><label>Plantilla a usar</label><select id="configFlujo"><option value="">-- Seleccionar --</option></select></div>
+</div>
+<div style="margin-top:12px">
+<label><input type="checkbox" id="configActivo" style="width:auto;margin-right:6px"> Flujo activo (si está activo, el bot usará el flujo en vez del prompt de IA)</label>
+</div>
+<div style="margin-top:16px;display:flex;gap:8px">
+<button class="btn btn-green" onclick="saveConfig()"><i class="fas fa-save"></i> Guardar Configuración</button>
+<button class="btn btn-danger btn-sm" onclick="resetSesiones()"><i class="fas fa-eraser"></i> Reiniciar sesiones</button>
+</div>
+</div>
+</div>
+
+<!-- TAB: EDITOR -->
+<div id="tab-editor" class="hidden">
+<div class="card">
+<div class="card-title"><i class="fas fa-code"></i> Editor de Flujos Custom</div>
+<p style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Edita los pasos del flujo. Cada paso tiene un tipo, mensaje y campo a capturar.</p>
+<div id="editorPasos" style="margin-bottom:16px"></div>
+<button class="btn btn-outline btn-sm" onclick="addPaso()"><i class="fas fa-plus"></i> Agregar paso</button>
+<button class="btn btn-green" style="margin-left:8px" onclick="saveCustomFlujo()"><i class="fas fa-save"></i> Guardar flujo custom</button>
+</div>
+</div>
+
+<!-- TAB: SESIONES -->
+<div id="tab-sesiones" class="hidden">
+<div class="card">
+<div class="card-title"><i class="fas fa-history"></i> Sesiones de Usuarios
+<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="loadSesiones()"><i class="fas fa-sync"></i></button>
+</div>
+<div style="margin-bottom:12px"><label>Tenant</label><select id="sesionesTenant" onchange="loadSesiones()"></select></div>
+<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.82rem">
+<thead><tr><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">ID</th><th>Teléfono</th><th>Paso</th><th>Datos</th><th>Estado</th><th>Fecha</th></tr></thead>
+<tbody id="sesionesBody"><tr><td colspan="6" style="text-align:center;padding:20px;color:var(--dim)">Selecciona un tenant</td></tr></tbody>
+</table></div>
+</div>
+</div>
+</div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const API = '';
+let TOKEN = localStorage.getItem('sgc_flu_token') || '';
+let tenants = [];
+let plantillas = [];
+let currentConfig = null;
+let editorPasos = [];
+
+function toast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + (type||'');
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+  const res = await fetch(API + path, { ...opts, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
+  return data;
+}
+
+function switchTab(e, tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  e.target.classList.add('active');
+  ['plantillas','config','editor','sesiones'].forEach(t => document.getElementById('tab-'+t).classList.add('hidden'));
+  document.getElementById('tab-'+tab).classList.remove('hidden');
+  if (tab === 'plantillas') loadPlantillas();
+  if (tab === 'config') loadConfigDetail();
+  if (tab === 'editor') loadEditor();
+  if (tab === 'sesiones') loadSesiones();
+}
+
+// === LOGIN ===
+async function doLogin() {
+  const user = document.getElementById('loginUser').value;
+  const pass = document.getElementById('loginPass').value;
+  try {
+    const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: user, password: pass }) }).catch(() => null);
+    // Si no hay endpoint de login propio, usar el de sgc-saas
+    if (!data) {
+      const res = await fetch('https://sgc-tienda.pages.dev/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user, password: pass })
+      });
+      const d = await res.json();
+      if (d.token) {
+        TOKEN = d.token;
+        localStorage.setItem('sgc_flu_token', TOKEN);
+        showApp();
+      } else {
+        toast('Credenciales incorrectas', 'error');
+      }
+    } else if (data.token) {
+      TOKEN = data.token;
+      localStorage.setItem('sgc_flu_token', TOKEN);
+      showApp();
+    }
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function showApp() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  loadTenants();
+}
+
+function logout() {
+  localStorage.removeItem('sgc_flu_token');
+  TOKEN = '';
+  location.reload();
+}
+
+// === TENANTS ===
+async function loadTenants() {
+  try {
+    const data = await api('https://sgc-saas.activo.workers.dev/api/superadmin/tenants', { headers: { 'X-Admin-Password': 'admin123' } });
+    tenants = data.tenants || [];
+    const opts = tenants.map(t => `<option value="${t.id}">${esc(t.business_name)} (/${esc(t.slug)})</option>`).join('');
+    ['plantillaTenant','configTenant','sesionesTenant'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = opts;
+    });
+    loadPlantillas();
+  } catch (e) {
+    toast('Error cargando tenants: ' + e.message, 'error');
+  }
+}
+
+// === PLANTILLAS ===
+async function loadPlantillas() {
+  try {
+    const data = await api('/api/plantillas');
+    plantillas = data.plantillas || [];
+    const list = document.getElementById('plantillasList');
+    list.innerHTML = plantillas.map(p => {
+      let pasosCount = 0;
+      try { pasosCount = JSON.parse(p.pasos_json || '[]').length; } catch(e) {}
+      return `
+      <div class="plantilla-card" onclick="selectPlantilla(${p.id})">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <strong>${esc(p.nombre)}</strong>
+            <span style="font-size:.7rem;color:var(--muted);margin-left:8px">${esc(p.rubro)}</span>
+          </div>
+          <span class="badge badge-green">${pasosCount} pasos</span>
+        </div>
+        <p style="font-size:.8rem;color:var(--muted);margin-top:4px">${esc(p.descripcion||'')}</p>
+      </div>`;
+    }).join('');
+    // Cargar también en el select de config
+    const configFlujo = document.getElementById('configFlujo');
+    if (configFlujo) {
+      configFlujo.innerHTML = '<option value="">-- Seleccionar --</option>' + plantillas.map(p => `<option value="${p.id}">${esc(p.nombre)} (${esc(p.rubro)})</option>`).join('');
+    }
+    loadConfig();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+async function selectPlantilla(id) {
+  document.querySelectorAll('.plantilla-card').forEach(c => c.classList.remove('selected'));
+  event.target.closest('.plantilla-card').classList.add('selected');
+  const tid = document.getElementById('plantillaTenant')?.value;
+  if (!tid) { toast('Selecciona un tenant primero', 'error'); return; }
+  try {
+    await api('/api/config', { method: 'PUT', body: JSON.stringify({ tenant_id: parseInt(tid), flujo_id: id, activo: true }) });
+    toast('Plantilla asignada y activada', 'success');
+    loadConfig();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// === CONFIG ===
+async function loadConfig() {
+  const tid = document.getElementById('plantillaTenant')?.value;
+  if (!tid) return;
+  try {
+    const data = await api('/api/config?t=' + tid);
+    currentConfig = data.config;
+  } catch (e) {
+    currentConfig = null;
+  }
+}
+
+async function loadConfigDetail() {
+  const tid = document.getElementById('configTenant')?.value;
+  if (!tid) return;
+  try {
+    const data = await api('/api/config?t=' + tid);
+    currentConfig = data.config;
+    document.getElementById('configFlujo').value = currentConfig.flujo_id || '';
+    document.getElementById('configActivo').checked = currentConfig.activo === 1;
+    if (currentConfig.custom_pasos_json) {
+      try { editorPasos = JSON.parse(currentConfig.custom_pasos_json); } catch(e) { editorPasos = []; }
+    }
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function saveConfig() {
+  const tid = parseInt(document.getElementById('configTenant').value);
+  const flujoId = document.getElementById('configFlujo').value ? parseInt(document.getElementById('configFlujo').value) : null;
+  const activo = document.getElementById('configActivo').checked;
+  try {
+    await api('/api/config', { method: 'PUT', body: JSON.stringify({ tenant_id: tid, flujo_id: flujoId, activo }) });
+    toast('Configuración guardada', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function resetSesiones() {
+  const tid = parseInt(document.getElementById('configTenant').value);
+  if (!confirm('Reiniciar todas las sesiones activas de este tenant?')) return;
+  try {
+    await api('/api/motor/reset', { method: 'POST', body: JSON.stringify({ tenant_id: tid, phone: '' }) });
+    toast('Sesiones reiniciadas', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// === EDITOR ===
+async function loadEditor() {
+  const tid = document.getElementById('configTenant')?.value;
+  if (tid) await loadConfigDetail();
+  renderEditor();
+}
+
+function renderEditor() {
+  const container = document.getElementById('editorPasos');
+  if (!editorPasos.length) {
+    container.innerHTML = '<p style="text-align:center;color:var(--dim);padding:20px">No hay pasos. Carga una plantilla o agrega pasos.</p>';
+    return;
+  }
+  container.innerHTML = editorPasos.map((p, i) => `
+    <div class="flujo-paso">
+      <div class="flujo-paso-num">${i+1}</div>
+      <span class="flujo-paso-tipo tipo-${p.tipo}">${p.tipo}</span>
+      <div class="flujo-paso-msg">${esc(p.mensaje||'')}</div>
+      <button class="btn btn-outline btn-sm" onclick="editPaso(${i})"><i class="fas fa-edit"></i></button>
+      <button class="btn btn-danger btn-sm" onclick="removePaso(${i})"><i class="fas fa-trash"></i></button>
+    </div>
+  `).join('');
+}
+
+function addPaso() {
+  const tipo = prompt('Tipo de paso (saludo, pregunta, confirmacion, crear_cita):', 'pregunta');
+  if (!tipo) return;
+  const mensaje = prompt('Mensaje del paso:', '');
+  if (!mensaje) return;
+  const campo = tipo === 'pregunta' ? prompt('Campo a capturar (ej: nombre, fecha, hora):', '') : '';
+  editorPasos.push({ id: editorPasos.length, tipo, mensaje, campo: campo || undefined, espera: tipo === 'saludo' ? 'respuesta' : 'texto' });
+  renderEditor();
+}
+
+function editPaso(i) {
+  const p = editorPasos[i];
+  const mensaje = prompt('Mensaje:', p.mensaje);
+  if (mensaje !== null) p.mensaje = mensaje;
+  renderEditor();
+}
+
+function removePaso(i) {
+  editorPasos.splice(i, 1);
+  renderEditor();
+}
+
+async function saveCustomFlujo() {
+  const tid = parseInt(document.getElementById('configTenant').value);
+  if (!tid) { toast('Selecciona un tenant', 'error'); return; }
+  try {
+    await api('/api/config', { method: 'PUT', body: JSON.stringify({ tenant_id: tid, flujo_id: null, activo: true, custom_pasos_json: JSON.stringify(editorPasos) }) });
+    toast('Flujo custom guardado y activado', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// === SESIONES ===
+async function loadSesiones() {
+  const tid = document.getElementById('sesionesTenant')?.value;
+  if (!tid) return;
+  try {
+    const data = await api('/api/sesiones?t=' + tid);
+    const body = document.getElementById('sesionesBody');
+    const sesiones = data.sesiones || [];
+    if (!sesiones.length) {
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--dim)">Sin sesiones</td></tr>';
+      return;
+    }
+    body.innerHTML = sesiones.map(s => {
+      let datos = '';
+      try { const d = JSON.parse(s.datos_json||'{}'); datos = Object.entries(d).map(([k,v]) => `${k}: ${v}`).join(', '); } catch(e) {}
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px">${s.id}</td>
+        <td>${esc(s.phone||'-')}</td>
+        <td>${s.paso_actual}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(datos)}</td>
+        <td><span class="badge ${s.estado==='activa'?'badge-green':s.estado==='completada'?'badge-yellow':'badge-red'}">${s.estado}</span></td>
+        <td style="font-size:.75rem;color:var(--dim)">${(s.created_at||'').slice(0,16)}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// === INIT ===
+if (TOKEN) {
+  // Verificar token
+  api('/api/health').then(() => showApp()).catch(() => { localStorage.removeItem('sgc_flu_token'); TOKEN=''; });
+}
+</script>
+</body>
+</html>
