@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SGC Flujos — Sistema de Flujos de Agendamiento</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#0a0a0a;color:#e8e8e8;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+:root{--green:#22c55e;--bg1:#111;--border:#2a2a2a}
+.container{max-width:600px;text-align:center}
+h1{font-size:2.5rem;font-weight:900;margin-bottom:16px}
+h1 .accent{color:var(--green)}
+p{color:#999;font-size:1.1rem;line-height:1.6;margin-bottom:32px}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:32px}
+.feature{background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:20px}
+.feature h3{font-size:1rem;font-weight:700;color:#fff;margin-bottom:6px}
+.feature p{font-size:.85rem;color:#666;margin:0}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:14px 28px;border-radius:999px;font-weight:700;font-size:1rem;text-decoration:none;cursor:pointer;border:none;font-family:inherit;transition:all .2s}
+.btn-green{background:var(--green);color:#042713}
+.btn-green:hover{background:#fff;transform:translateY(-2px)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:#e8e8e8;margin-left:12px}
+.btn-outline:hover{border-color:var(--green);color:var(--green)}
+.ecosystem{margin-top:40px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.eco-item{background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:.8rem;color:#999}
+.eco-item a{color:var(--green);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>SGC <span class="accent">Flujos</span></h1>
+<p>Sistema de Flujos de Agendamiento para bots de WhatsApp y chat online. Plantillas por rubro, editor visual y motor determinista que no depende de IA.</p>
+
+<div class="features">
+<div class="feature">
+<h3>🎨 Plantillas por Rubro</h3>
+<p>Barbería, taller, dental, restaurante, spa y custom</p>
+</div>
+<div class="feature">
+<h3>⚡ Motor Determinista</h3>
+<p>Sin IA para el flujo. Respuestas instantáneas.</p>
+</div>
+<div class="feature">
+<h3>🔧 Editor Visual</h3>
+<p>Personaliza pasos, mensajes y campos por tenant</p>
+</div>
+<div class="feature">
+<h3>🔗 Integrado</h3>
+<p>Conecta con SGC SaaS (WhatsApp) y SGC Tienda</p>
+</div>
+</div>
+
+<div>
+<a href="/admin" class="btn btn-green">Panel Admin →</a>
+<a href="/api/health" class="btn btn-outline">API Health</a>
+</div>
+
+<div class="ecosystem">
+<div class="eco-item">🤖 <a href="https://sgc-saas.pages.dev/superadmin" target="_blank">SGC SaaS (Citas)</a></div>
+<div class="eco-item">🛒 <a href="https://sgc-tienda.pages.dev/admin" target="_blank">SGC Tienda (Productos)</a></div>
+<div class="eco-item">📊 <a href="/admin" target="_blank">SGC Flujos (Este)</a></div>
+</div>
+</div>
+</body>
+</html>
