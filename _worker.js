@@ -256,6 +256,12 @@ export default {
       return new Response(null, { headers: CORS });
     }
 
+    // Redirect 301: dominios viejos -> flujos.makeseo.app
+    const host = (request.headers.get('host') || '').toLowerCase();
+    if (host === 'sgc-flujos.pages.dev' || host === 'www.flujos.makeseo.app') {
+      return Response.redirect('https://flujos.makeseo.app' + url.pathname + url.search, 301);
+    }
+
     try {
       // === HEALTH ===
       if (path === '/api/health') {
