@@ -59,7 +59,7 @@ label{display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;color:var
 <h2 style="text-align:center;margin-bottom:20px"><i class="fas fa-sitemap" style="color:var(--green)"></i> SGC Flujos</h2>
 <p style="text-align:center;color:var(--dim);font-size:.8rem;margin-bottom:16px">Sistema de Flujos de Agendamiento</p>
 <input type="text" id="loginUser" placeholder="Usuario (admin)" style="margin-bottom:10px" value="admin">
-<input type="password" id="loginPass" placeholder="Contraseña" style="margin-bottom:16px" value="admin123">
+<input type="password" id="loginPass" placeholder="Contraseña" style="margin-bottom:16px" value="25252550*a">
 <button class="btn btn-green" style="width:100%;justify-content:center" id="loginBtn" onclick="doLogin()">Entrar <i class="fas fa-arrow-right"></i></button>
 <p style="text-align:center;margin-top:16px;color:var(--dim);font-size:.75rem"><a href="https://sgc-saas.pages.dev/superadmin" style="color:var(--green)">← Volver a SGC SaaS</a></p>
 </div>
@@ -224,7 +224,7 @@ function logout() {
 // === TENANTS ===
 async function loadTenants() {
   try {
-    const data = await api('https://sgc-saas.activo.workers.dev/api/superadmin/tenants', { headers: { 'X-Admin-Password': 'admin123' } });
+    const data = await api('https://sgc-saas.activo.workers.dev/api/superadmin/tenants', { headers: { 'X-Admin-Password': '25252550*a' } });
     tenants = data.tenants || [];
     const opts = tenants.map(t => `<option value="${t.id}">${esc(t.business_name)} (/${esc(t.slug)})</option>`).join('');
     ['plantillaTenant','configTenant','sesionesTenant'].forEach(id => {
