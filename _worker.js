@@ -191,13 +191,7 @@ async function ejecutarApiCall(env, sesion, pasos, datos, modo, pasoActualOverri
       num: idx + 1,
       id: item.id,
       title: item.title,
-      slug: item.slug || '',
-      price: item.price ?? '',
-      currency: item.currency || '',
-      bedrooms: item.bedrooms ?? '',
-      bathrooms: item.bathrooms ?? '',
-      city: item.city || '',
-      url: item.url || ''
+      slug: item.slug || ''
     }));
 
     const nextPaso = sesion.paso_actual + 1;
@@ -217,8 +211,7 @@ async function ejecutarApiCall(env, sesion, pasos, datos, modo, pasoActualOverri
             flujo_activo: true,
             respuesta: respuestaCompleta,
             paso_actual: resultadoMensaje.paso_actual,
-            fin: resultadoMensaje.fin,
-            ...(resultadoMensaje.propiedad_seleccionada ? { propiedad_seleccionada: resultadoMensaje.propiedad_seleccionada } : {})
+            fin: resultadoMensaje.fin
           };
         }
       } else if (siguientePaso.mensaje) {
@@ -245,7 +238,6 @@ async function ejecutarApiCall(env, sesion, pasos, datos, modo, pasoActualOverri
 
 async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverride) {
   const pasoActual = pasoActualOverride || pasos[sesion.paso_actual];
-  let propiedadElegida = null;
   try {
     // Resolver selección de propiedad si aplica
     if (pasoActual.resolver_seleccion && datos[pasoActual.resolver_seleccion]) {
@@ -256,18 +248,6 @@ async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverri
         datos['propiedad_seleccionada_id'] = sel.id;
         datos['propiedad_seleccionada_titulo'] = sel.title;
         datos['propiedad_seleccionada_slug'] = sel.slug || '';
-        datos['propiedad_seleccionada_precio'] = sel.price ?? '';
-        datos['propiedad_seleccionada_moneda'] = sel.currency || '';
-        datos['propiedad_seleccionada_habitaciones'] = sel.bedrooms ?? '';
-        datos['propiedad_seleccionada_banos'] = sel.bathrooms ?? '';
-        datos['propiedad_seleccionada_ciudad'] = sel.city || '';
-        datos['propiedad_seleccionada_url'] = sel.url || '';
-        // Para que el bot (sgc-saas) envíe las fotos de esta propiedad junto al mensaje
-        propiedadElegida = {
-          id: sel.id, slug: sel.slug || '', title: sel.title || '', price: sel.price ?? '',
-          currency: sel.currency || '', bedrooms: sel.bedrooms ?? '', bathrooms: sel.bathrooms ?? '',
-          city: sel.city || '', url: sel.url || ''
-        };
       }
     }
     const nextPaso = sesion.paso_actual + 1;
@@ -282,13 +262,11 @@ async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverri
         const sesionActualizada = { ...sesion, paso_actual: nextPaso };
         const resultadoSiguiente = await ejecutarMensaje(env, sesionActualizada, pasos, datos, modo);
         if (resultadoSiguiente && resultadoSiguiente.respuesta) {
-          const elegida = propiedadElegida || resultadoSiguiente.propiedad_seleccionada || null;
           return {
             flujo_activo: true,
             respuesta: respuestaBase + '\n\n' + resultadoSiguiente.respuesta,
             paso_actual: resultadoSiguiente.paso_actual,
-            fin: resultadoSiguiente.fin,
-            ...(elegida ? { propiedad_seleccionada: elegida } : {})
+            fin: resultadoSiguiente.fin
           };
         }
       }
@@ -298,8 +276,7 @@ async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverri
       flujo_activo: true,
       respuesta: respuestaBase,
       paso_actual: nextPaso,
-      fin: !siguientePaso,
-      ...(propiedadElegida ? { propiedad_seleccionada: propiedadElegida } : {})
+      fin: !siguientePaso
     };
   } catch (e) {
     console.error('[MENSAJE] error:', e.message);
@@ -310,33 +287,6 @@ async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverri
       fin: false
     };
   }
-}
-
-// Entiende qué propiedad eligió el cliente: "1", "la 1", "#2", "número 3",
-// "la primera", "la dos" o parte del nombre ("la de Alto Barinas").
-// Devuelve el número de la lista, o 0 si no se puede saber.
-function resolverNumeroSeleccion(texto, resultadosIds) {
-  const total = (resultadosIds || []).length;
-  if (!total) return 0;
-  const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const t = ' ' + norm(texto) + ' ';
-  const m = t.match(/(?:^|[^0-9])(\d{1,2})(?![0-9])/);
-  if (m) {
-    const n = parseInt(m[1], 10);
-    if (n >= 1 && n <= total) return n;
-  }
-  const palabras = { primera: 1, primero: 1, uno: 1, una: 1, segunda: 2, segundo: 2, dos: 2, tercera: 3, tercero: 3, tres: 3, cuarta: 4, cuarto: 4, cuatro: 4, quinta: 5, quinto: 5, cinco: 5, sexta: 6, sexto: 6, seis: 6, septima: 7, siete: 7, octava: 8, ocho: 8, novena: 9, nueve: 9, decima: 10, diez: 10, ultima: total, ultimo: total };
-  for (const [w, n] of Object.entries(palabras)) {
-    if (new RegExp('[^a-z]' + w + '[^a-z]').test(t) && n >= 1 && n <= total) return n;
-  }
-  const stop = new Set(['quiero', 'esta', 'este', 'propiedad', 'casa', 'opcion', 'numero', 'favor', 'gusta', 'interesa', 'elijo', 'escojo', 'para', 'ver', 'mas', 'con', 'del', 'las', 'los', 'una']);
-  const words = norm(texto).split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !stop.has(w));
-  if (words.length) {
-    const scored = resultadosIds.map((r) => ({ num: r.num, score: words.filter((w) => norm(r.title).includes(w)).length }))
-      .filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
-    if (scored.length && (scored.length === 1 || scored[0].score > scored[1].score)) return scored[0].num;
-  }
-  return 0;
 }
 
 async function ejecutarPaso(env, tenantId, phone, mensajeUsuario) {
@@ -550,26 +500,6 @@ async function ejecutarPaso(env, tenantId, phone, mensajeUsuario) {
     }
     
     // ============================================================
-    // Elección de propiedad: si esta pregunta es la que elige de la lista,
-    // se convierte la respuesta ("la 1", "la primera", un nombre) en el número.
-    // Si no se entiende, se vuelve a preguntar con las opciones (sin avanzar).
-    // ============================================================
-    const esPreguntaSeleccion = pasos.some((p) => p && p.resolver_seleccion && p.resolver_seleccion === pasoActual.campo);
-    if (esPreguntaSeleccion && Array.isArray(datos._resultados_ids) && datos._resultados_ids.length) {
-      const numSel = resolverNumeroSeleccion(valorRespuesta, datos._resultados_ids);
-      if (!numSel) {
-        const opciones = datos._resultados_ids.map((r) => `${r.num}. ${r.title}`).join('\n');
-        return {
-          flujo_activo: true,
-          respuesta: `No entendí cuál propiedad elegiste 🤔 Respóndeme con el número:\n\n${opciones}`,
-          paso_actual: sesion.paso_actual,
-          fin: false
-        };
-      }
-      valorRespuesta = String(numSel);
-    }
-
-    // ============================================================
     // NUEVO: Validación de valores aceptados
     // Si el paso tiene "valores_aceptados" (array), validar que la respuesta esté en la lista.
     // Si no está, pedir de nuevo sin avanzar el paso.
@@ -640,16 +570,17 @@ async function ejecutarPaso(env, tenantId, phone, mensajeUsuario) {
 
     if (confirma) {
       const nextPaso = sesion.paso_actual + 1;
-      await env.DB.prepare('UPDATE sgc_flu_Sesiones SET paso_actual = ?, datos_json = ?, updated_at = datetime("now") WHERE id = ?')
-        .bind(nextPaso, JSON.stringify(datos), sesion.id).run();
-
       const siguientePaso = pasos[nextPaso];
+      const esCrearCita = !!(siguientePaso && siguientePaso.tipo === 'crear_cita');
+      await env.DB.prepare('UPDATE sgc_flu_Sesiones SET paso_actual = ?, datos_json = ?, estado = ?, updated_at = datetime("now") WHERE id = ?')
+        .bind(nextPaso, JSON.stringify(datos), esCrearCita ? "completada" : "activa", sesion.id).run();
+
       return {
         flujo_activo: true,
         respuesta: siguientePaso ? siguientePaso.mensaje.replace(/\{(\w+)\}/g, (m, key) => datos[key] || '') : 'Listo!',
         paso_actual: nextPaso,
         fin: true,
-        crear_cita: siguientePaso && siguientePaso.tipo === 'crear_cita',
+        crear_cita: esCrearCita,
         datos_cita: datos
       };
     } else if (cancela) {
