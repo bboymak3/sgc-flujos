@@ -519,7 +519,24 @@ async function ejecutarPaso(env, tenantId, phone, mensajeUsuario) {
     
     datos[pasoActual.campo] = valorRespuesta;
 
-    const nextPaso = sesion.paso_actual + 1;
+    let nextPaso = sesion.paso_actual + 1;
+    // Soporte de ramificacion si/no en preguntas (ej: quiere agendar visita)
+    const ramaSi = (pasoActual.siguiente_si !== undefined) ? pasoActual.siguiente_si : ((pasoActual.siguiente_paso_si !== undefined) ? pasoActual.siguiente_paso_si : pasoActual.goto_si);
+    const ramaNo = (pasoActual.siguiente_no !== undefined) ? pasoActual.siguiente_no : ((pasoActual.siguiente_paso_no !== undefined) ? pasoActual.siguiente_paso_no : pasoActual.goto_no);
+    let esSiRama = false, esNoRama = false;
+    if (ramaSi !== undefined || ramaNo !== undefined) {
+      esSiRama = /\b(si|s[ií]|claro|ok|dale|por supuesto|afirmativo|de acuerdo|confirmo)\b/i.test(mensajeUsuario);
+      esNoRama = /\b(no|nop|nah|para nada|no gracias|negativo|cancelar)\b/i.test(mensajeUsuario);
+      if (esNoRama && ramaNo !== undefined) nextPaso = parseInt(ramaNo, 10);
+      else if (esSiRama && ramaSi !== undefined) nextPaso = parseInt(ramaSi, 10);
+    }
+    // Fin explicito por rama (-1 o fuera de rango)
+    if (nextPaso < 0 || nextPaso >= pasos.length) {
+      await env.DB.prepare('UPDATE sgc_flu_Sesiones SET paso_actual = ?, datos_json = ?, estado = "completada", updated_at = datetime("now") WHERE id = ?')
+        .bind(nextPaso, JSON.stringify(datos), sesion.id).run();
+      const finMsg = (esNoRama && pasoActual.mensaje_fin_no) ? pasoActual.mensaje_fin_no.replace(/\{(\w+)\}/g, (m, key) => datos[key] || '') : ((pasoActual.mensaje_fin) ? pasoActual.mensaje_fin.replace(/\{(\w+)\}/g, (m, key) => datos[key] || '') : '¡Perfecto! Si necesitas algo más, aquí estaré para ayudarte. 😊');
+      return { flujo_activo: true, respuesta: finMsg, paso_actual: nextPaso, fin: true, datos_recopilados: datos };
+    }
     await env.DB.prepare('UPDATE sgc_flu_Sesiones SET paso_actual = ?, datos_json = ?, updated_at = datetime("now") WHERE id = ?')
       .bind(nextPaso, JSON.stringify(datos), sesion.id).run();
 
