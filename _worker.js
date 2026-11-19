@@ -191,7 +191,13 @@ async function ejecutarApiCall(env, sesion, pasos, datos, modo, pasoActualOverri
       num: idx + 1,
       id: item.id,
       title: item.title,
-      slug: item.slug || ''
+      slug: item.slug || '',
+      price: item.price ?? '',
+      currency: item.currency || '',
+      bedrooms: item.bedrooms ?? '',
+      bathrooms: item.bathrooms ?? '',
+      city: item.city || '',
+      url: item.url || ''
     }));
 
     const nextPaso = sesion.paso_actual + 1;
@@ -211,7 +217,8 @@ async function ejecutarApiCall(env, sesion, pasos, datos, modo, pasoActualOverri
             flujo_activo: true,
             respuesta: respuestaCompleta,
             paso_actual: resultadoMensaje.paso_actual,
-            fin: resultadoMensaje.fin
+            fin: resultadoMensaje.fin,
+            ...(resultadoMensaje.propiedad_seleccionada ? { propiedad_seleccionada: resultadoMensaje.propiedad_seleccionada } : {})
           };
         }
       } else if (siguientePaso.mensaje) {
@@ -238,6 +245,7 @@ async function ejecutarApiCall(env, sesion, pasos, datos, modo, pasoActualOverri
 
 async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverride) {
   const pasoActual = pasoActualOverride || pasos[sesion.paso_actual];
+  let propiedadElegida = null;
   try {
     // Resolver selección de propiedad si aplica
     if (pasoActual.resolver_seleccion && datos[pasoActual.resolver_seleccion]) {
@@ -248,6 +256,18 @@ async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverri
         datos['propiedad_seleccionada_id'] = sel.id;
         datos['propiedad_seleccionada_titulo'] = sel.title;
         datos['propiedad_seleccionada_slug'] = sel.slug || '';
+        datos['propiedad_seleccionada_precio'] = sel.price ?? '';
+        datos['propiedad_seleccionada_moneda'] = sel.currency || '';
+        datos['propiedad_seleccionada_habitaciones'] = sel.bedrooms ?? '';
+        datos['propiedad_seleccionada_banos'] = sel.bathrooms ?? '';
+        datos['propiedad_seleccionada_ciudad'] = sel.city || '';
+        datos['propiedad_seleccionada_url'] = sel.url || '';
+        // Para que el bot (sgc-saas) envíe las fotos de esta propiedad junto al mensaje
+        propiedadElegida = {
+          id: sel.id, slug: sel.slug || '', title: sel.title || '', price: sel.price ?? '',
+          currency: sel.currency || '', bedrooms: sel.bedrooms ?? '', bathrooms: sel.bathrooms ?? '',
+          city: sel.city || '', url: sel.url || ''
+        };
       }
     }
     const nextPaso = sesion.paso_actual + 1;
@@ -262,11 +282,13 @@ async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverri
         const sesionActualizada = { ...sesion, paso_actual: nextPaso };
         const resultadoSiguiente = await ejecutarMensaje(env, sesionActualizada, pasos, datos, modo);
         if (resultadoSiguiente && resultadoSiguiente.respuesta) {
+          const elegida = propiedadElegida || resultadoSiguiente.propiedad_seleccionada || null;
           return {
             flujo_activo: true,
             respuesta: respuestaBase + '\n\n' + resultadoSiguiente.respuesta,
             paso_actual: resultadoSiguiente.paso_actual,
-            fin: resultadoSiguiente.fin
+            fin: resultadoSiguiente.fin,
+            ...(elegida ? { propiedad_seleccionada: elegida } : {})
           };
         }
       }
@@ -276,7 +298,8 @@ async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverri
       flujo_activo: true,
       respuesta: respuestaBase,
       paso_actual: nextPaso,
-      fin: !siguientePaso
+      fin: !siguientePaso,
+      ...(propiedadElegida ? { propiedad_seleccionada: propiedadElegida } : {})
     };
   } catch (e) {
     console.error('[MENSAJE] error:', e.message);
