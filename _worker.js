@@ -312,6 +312,33 @@ async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverri
   }
 }
 
+// Entiende qué propiedad eligió el cliente: "1", "la 1", "#2", "número 3",
+// "la primera", "la dos" o parte del nombre ("la de Alto Barinas").
+// Devuelve el número de la lista, o 0 si no se puede saber.
+function resolverNumeroSeleccion(texto, resultadosIds) {
+  const total = (resultadosIds || []).length;
+  if (!total) return 0;
+  const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const t = ' ' + norm(texto) + ' ';
+  const m = t.match(/(?:^|[^0-9])(\d{1,2})(?![0-9])/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n >= 1 && n <= total) return n;
+  }
+  const palabras = { primera: 1, primero: 1, uno: 1, una: 1, segunda: 2, segundo: 2, dos: 2, tercera: 3, tercero: 3, tres: 3, cuarta: 4, cuarto: 4, cuatro: 4, quinta: 5, quinto: 5, cinco: 5, sexta: 6, sexto: 6, seis: 6, septima: 7, siete: 7, octava: 8, ocho: 8, novena: 9, nueve: 9, decima: 10, diez: 10, ultima: total, ultimo: total };
+  for (const [w, n] of Object.entries(palabras)) {
+    if (new RegExp('[^a-z]' + w + '[^a-z]').test(t) && n >= 1 && n <= total) return n;
+  }
+  const stop = new Set(['quiero', 'esta', 'este', 'propiedad', 'casa', 'opcion', 'numero', 'favor', 'gusta', 'interesa', 'elijo', 'escojo', 'para', 'ver', 'mas', 'con', 'del', 'las', 'los', 'una']);
+  const words = norm(texto).split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !stop.has(w));
+  if (words.length) {
+    const scored = resultadosIds.map((r) => ({ num: r.num, score: words.filter((w) => norm(r.title).includes(w)).length }))
+      .filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
+    if (scored.length && (scored.length === 1 || scored[0].score > scored[1].score)) return scored[0].num;
+  }
+  return 0;
+}
+
 async function ejecutarPaso(env, tenantId, phone, mensajeUsuario) {
   // 1. Obtener configuración del flujo del tenant
   const config = await env.DB.prepare(
@@ -522,6 +549,26 @@ async function ejecutarPaso(env, tenantId, phone, mensajeUsuario) {
       }
     }
     
+    // ============================================================
+    // Elección de propiedad: si esta pregunta es la que elige de la lista,
+    // se convierte la respuesta ("la 1", "la primera", un nombre) en el número.
+    // Si no se entiende, se vuelve a preguntar con las opciones (sin avanzar).
+    // ============================================================
+    const esPreguntaSeleccion = pasos.some((p) => p && p.resolver_seleccion && p.resolver_seleccion === pasoActual.campo);
+    if (esPreguntaSeleccion && Array.isArray(datos._resultados_ids) && datos._resultados_ids.length) {
+      const numSel = resolverNumeroSeleccion(valorRespuesta, datos._resultados_ids);
+      if (!numSel) {
+        const opciones = datos._resultados_ids.map((r) => `${r.num}. ${r.title}`).join('\n');
+        return {
+          flujo_activo: true,
+          respuesta: `No entendí cuál propiedad elegiste 🤔 Respóndeme con el número:\n\n${opciones}`,
+          paso_actual: sesion.paso_actual,
+          fin: false
+        };
+      }
+      valorRespuesta = String(numSel);
+    }
+
     // ============================================================
     // NUEVO: Validación de valores aceptados
     // Si el paso tiene "valores_aceptados" (array), validar que la respuesta esté en la lista.
