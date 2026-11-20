@@ -46,6 +46,31 @@ async function verifyJWT(token) {
 // Contraseña de superadmin: se valida contra bot.makeseo.app (misma contraseña del superadmin),
 // así no hay contraseñas escritas en el código. Cache corto por proceso para no consultar en cada petición.
 const SUPERADMIN_OK_CACHE = new Map();
+// Límite de intentos (misma tabla que sgc-saas): 10 contraseñas malas en 10 min por IP => 15 min bloqueada
+async function segundosBloqueoAuth(env, ip) {
+  try {
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS sgc_auth_fallos (ip TEXT PRIMARY KEY, fallos INTEGER NOT NULL DEFAULT 0, ventana_inicio INTEGER NOT NULL DEFAULT 0, bloqueado_hasta INTEGER NOT NULL DEFAULT 0)").run();
+    const r = await env.DB.prepare('SELECT bloqueado_hasta FROM sgc_auth_fallos WHERE ip = ?').bind(ip).first();
+    const ahora = Math.floor(Date.now() / 1000);
+    return r && r.bloqueado_hasta > ahora ? r.bloqueado_hasta - ahora : 0;
+  } catch (e) { return 0; }
+}
+async function registrarFalloAuth(env, ip) {
+  try {
+    const ahora = Math.floor(Date.now() / 1000);
+    await env.DB.prepare(
+      `INSERT INTO sgc_auth_fallos (ip, fallos, ventana_inicio, bloqueado_hasta) VALUES (?1, 1, ?2, 0)
+       ON CONFLICT(ip) DO UPDATE SET
+         fallos = CASE WHEN ?2 - ventana_inicio > 600 THEN 1 ELSE fallos + 1 END,
+         ventana_inicio = CASE WHEN ?2 - ventana_inicio > 600 THEN ?2 ELSE ventana_inicio END`
+    ).bind(ip, ahora).run();
+    const r = await env.DB.prepare('SELECT fallos FROM sgc_auth_fallos WHERE ip = ?').bind(ip).first();
+    if (r && r.fallos >= 10) {
+      await env.DB.prepare('UPDATE sgc_auth_fallos SET bloqueado_hasta = ?, fallos = 0, ventana_inicio = ? WHERE ip = ?').bind(ahora + 900, ahora, ip).run();
+      console.log(`[LIMITE] IP ${ip} bloqueada 15 min por contraseñas incorrectas`);
+    }
+  } catch (e) { console.error('[LIMITE] error:', e.message); }
+}
 async function esSuperadmin(request) {
   const pwd = request.headers.get('X-Admin-Password') || '';
   if (!pwd || pwd.length > 200) return false;
@@ -889,7 +914,14 @@ export default {
       if (path === '/api/config' && method === 'PUT') {
         // Auth: JWT del panel de flujos O contraseña real de superadmin (validada contra bot.makeseo.app).
         // Antes se aceptaba una contraseña fija escrita en el código.
+        const ipCfg = request.headers.get('CF-Connecting-IP') || 'desconocida';
+        const pwdEnviada = !!request.headers.get('X-Admin-Password');
+        if (pwdEnviada) {
+          const restante = await segundosBloqueoAuth(env, ipCfg);
+          if (restante > 0) return jsonError(`Demasiados intentos con contraseña incorrecta. Intenta de nuevo en ${Math.ceil(restante / 60)} min.`, 429);
+        }
         const isAdminViaPwd = await esSuperadmin(request);
+        if (pwdEnviada && !isAdminViaPwd) await registrarFalloAuth(env, ipCfg);
 
         let user = null;
         if (!isAdminViaPwd) {
