@@ -558,6 +558,19 @@ async function ejecutarPaso(env, tenantId, phone, mensajeUsuario) {
       .bind(nextPaso, sesion.id).run();
 
     const siguientePaso = pasos[nextPaso];
+    // respuesta_directa (opcional): si el primer mensaje ya responde la primera pregunta
+    // (ej: "Comprar" → operacion = venta), no se vuelve a preguntar: se procesa como respuesta.
+    // Solo si coincide con UNA sola opción (ej: "comprar o alquilar" no cuenta).
+    if (pasoActual.respuesta_directa && siguientePaso && siguientePaso.tipo === 'pregunta' && siguientePaso.sinonimos && Array.isArray(siguientePaso.valores_aceptados)) {
+      const ml = (mensajeUsuario || '').toLowerCase().trim();
+      const canon = new Set();
+      for (const v of siguientePaso.valores_aceptados) if (new RegExp('\\b' + v.toLowerCase() + '\\b').test(ml)) canon.add(v.toLowerCase());
+      for (const [k, v] of Object.entries(siguientePaso.sinonimos)) if (k.length > 2 && ml.includes(k)) canon.add(String(v).toLowerCase());
+      if (canon.size === 1) {
+        console.log(`[FLUJO] Respuesta directa en el primer mensaje: "${mensajeUsuario}" → ${[...canon][0]}`);
+        return await ejecutarPaso(env, tenantId, phone, [...canon][0]);
+      }
+    }
     return {
       flujo_activo: true,
       respuesta: pasoActual.mensaje + '\n\n' + (siguientePaso ? siguientePaso.mensaje : ''),
