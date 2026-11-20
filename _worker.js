@@ -163,7 +163,10 @@ async function ejecutarApiCall(env, sesion, pasos, datos, modo, pasoActualOverri
 
     // Construir lista formateada
     const lista = itemsToShow.map((item, idx) => {
-      const itemCtx = { ...item, num: idx + 1 };
+      const n = idx + 1;
+      // {num_emoji}: número grande tipo teclado (1️⃣ 2️⃣ ... 🔟)
+      const num_emoji = n === 10 ? '\u{1F51F}' : (n < 10 ? n + '\uFE0F\u20E3' : '#' + n);
+      const itemCtx = { ...item, num: n, num_emoji };
       return (pasoActual.template_item || '#{num}: {title}')
         .replace(/\{(\w+)\}/g, (m, key) => itemCtx[key] !== undefined ? itemCtx[key] : '');
     }).join('\n');
@@ -215,7 +218,11 @@ async function ejecutarApiCall(env, sesion, pasos, datos, modo, pasoActualOverri
           };
         }
       } else if (siguientePaso.mensaje) {
-        respuestaCompleta = mensaje + '\n\n' + siguientePaso.mensaje.replace(/\{(\w+)\}/g, (m, key) => datos[key] || '');
+        const preguntaSiguiente = siguientePaso.mensaje.replace(/\{(\w+)\}/g, (m, key) => datos[key] || '');
+        // pregunta_arriba: la pregunta del siguiente paso va antes de la lista, no al final
+        respuestaCompleta = pasoActual.pregunta_arriba
+          ? preguntaSiguiente + '\n\n' + mensaje
+          : mensaje + '\n\n' + preguntaSiguiente;
       }
     }
 
