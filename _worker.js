@@ -243,6 +243,54 @@ async function ejecutarApiCall(env, sesion, pasos, datos, modo, pasoActualOverri
   }
 }
 
+// ============================================================
+// VALIDACIONES OPCIONALES (se activan por paso; los flujos que no las usan no cambian)
+//  - pasos[i].salida_inteligente = true (en cualquier paso): "no gracias", "adiós", "cancelar"... cierran el flujo
+//  - pregunta.validar = "fecha" | "hora" | "nombre" | "si_no": si la respuesta no sirve, se vuelve a preguntar
+//  - mensaje.seleccion_estricta = true: si no eligió una opción válida de la lista, se vuelve a pedir
+// ============================================================
+const RE_SALIDA = /^(no+|nop|nah|no\s*,?\s*gracias|no\s+quiero(\s+[a-záéíóúñ]+){0,3}|no\s+por\s+ahora|no\s+todav[ií]a(\s+[a-záéíóúñ]+){0,2}|ahora\s+no|todav[ií]a\s+no|adi[oó]s|bye|chao|chau|hasta\s+luego|cancelar|cancela|olv[ií]dalo|no\s+me\s+interesa|nada)[\s!.,]*(gracias)?[\s!.,]*$/i;
+const MESES = 'enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre';
+function respuestaValida(tipo, texto) {
+  const t = String(texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  if (!t) return false;
+  if (tipo === 'fecha') {
+    return /\b(hoy|manana|pasado\s+manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/.test(t)
+      || /\b\d{4}-\d{1,2}-\d{1,2}\b/.test(t)
+      || /\b\d{1,2}\s*[\/-]\s*\d{1,2}(\s*[\/-]\s*\d{2,4})?\b/.test(t)
+      || new RegExp('\\b\\d{1,2}\\s*(de\\s+)?(' + MESES + ')\\b').test(t)
+      || /^(el\s+)?\d{1,2}$/.test(t);
+  }
+  if (tipo === 'hora') {
+    return /\b\d{1,2}(:\d{2})?\s*(am|pm|a\.?\s?m\.?|p\.?\s?m\.?|hrs?|h)\b/.test(t)
+      || /\b\d{1,2}:\d{2}\b/.test(t)
+      || /\b\d{1,2}\s*(de\s+la\s+)?(manana|tarde|noche)\b/.test(t)
+      || /\b(mediodia|medio\s+dia)\b/.test(t)
+      || /^(a\s+las\s+)?\d{1,2}$/.test(t);
+  }
+  if (tipo === 'nombre') {
+    if (!/[a-zñ]{2,}/.test(t) || t.length > 60 || /\d{3,}/.test(t)) return false;
+    return !/^(no+|si|ok|okey|dale|nada|ninguno|ninguna|adios|bye|chao|hola|que\s+no|no\s+se|nose|gracias|no\s+gracias|cancelar)$/.test(t);
+  }
+  if (tipo === 'si_no') {
+    return /\b(si|claro|ok|okey|dale|por\s+supuesto|afirmativo|de\s+acuerdo|confirmo|no|nop|nah|negativo|cancelar)\b/.test(t);
+  }
+  return true;
+}
+const MSG_VALIDACION = {
+  fecha: '📅 No entendí la fecha. Escríbela así: *mañana*, *viernes* o *25/11*.',
+  hora: '⏰ No entendí la hora. Escríbela así: *10am*, *3pm* o *15:00*.',
+  nombre: '👤 ¿Me dices tu nombre, por favor?',
+  si_no: '🙂 Responde *sí* o *no*.'
+};
+// Número elegido en una lista: "2", "2️⃣", "la 2", "#2", "la segunda", "opción 2"
+function numeroDeLista(texto) {
+  const t = ' ' + String(texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') + ' ';
+  const ord = { primera: 1, primero: 1, segunda: 2, segundo: 2, tercera: 3, tercero: 3, cuarta: 4, cuarto: 4, quinta: 5, quinto: 5 };
+  for (const [w, n] of Object.entries(ord)) if (new RegExp('[^a-z]' + w + '[^a-z]').test(t)) return n;
+  const m = t.match(/(?:^|[^0-9])(\d{1,2})(?![0-9])/);
+  return m ? parseInt(m[1], 10) : 0;
+}
 async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverride) {
   const pasoActual = pasoActualOverride || pasos[sesion.paso_actual];
   try {
@@ -250,7 +298,31 @@ async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverri
     if (pasoActual.resolver_seleccion && datos[pasoActual.resolver_seleccion]) {
       const num = parseInt(datos[pasoActual.resolver_seleccion]);
       const resultadosIds = datos['_resultados_ids'] || [];
-      const sel = resultadosIds.find(r => r.num === num);
+      let sel = resultadosIds.find(r => r.num === num);
+      if (!sel && pasoActual.seleccion_estricta) {
+        // Por número escrito de otra forma ("la 2", "la segunda") o por nombre
+        const n2 = numeroDeLista(datos[pasoActual.resolver_seleccion]);
+        sel = resultadosIds.find(r => r.num === n2);
+        if (!sel) {
+          const txt = String(datos[pasoActual.resolver_seleccion]).toLowerCase().trim();
+          if (txt.length >= 4) sel = resultadosIds.find(r => String(r.title || '').toLowerCase().includes(txt));
+        }
+        if (!sel) {
+          // No eligió una opción válida: volver a la pregunta de elección, sin avanzar
+          const pasoPregunta = Math.max(0, sesion.paso_actual - 1);
+          delete datos[pasoActual.resolver_seleccion];
+          await env.DB.prepare('UPDATE sgc_flu_Sesiones SET paso_actual = ?, datos_json = ?, updated_at = datetime("now") WHERE id = ?')
+            .bind(pasoPregunta, JSON.stringify(datos), sesion.id).run();
+          const kc = (n) => n === 10 ? '\u{1F51F}' : (n < 10 ? n + '\uFE0F\u20E3' : '#' + n);
+          const listaCorta = resultadosIds.map(r => kc(r.num) + ' ' + (r.title || '')).join('\n');
+          return {
+            flujo_activo: true,
+            respuesta: '🤔 No encontré esa opción. Responde con el número de la propiedad:' + (listaCorta ? '\n\n' + listaCorta : ''),
+            paso_actual: pasoPregunta,
+            fin: false
+          };
+        }
+      }
       if (sel) {
         datos['propiedad_seleccionada_id'] = sel.id;
         datos['propiedad_seleccionada_titulo'] = sel.title;
@@ -279,6 +351,11 @@ async function ejecutarMensaje(env, sesion, pasos, datos, modo, pasoActualOverri
       }
     }
     
+    if (!siguientePaso && pasos.some(p => p && p.salida_inteligente)) {
+      // Fin del flujo: cerrar la sesión para que un "ok" posterior no reabra pasos viejos
+      await env.DB.prepare('UPDATE sgc_flu_Sesiones SET estado = "completada", updated_at = datetime("now") WHERE id = ?')
+        .bind(sesion.id).run();
+    }
     return {
       flujo_activo: true,
       respuesta: respuestaBase,
@@ -371,8 +448,27 @@ async function ejecutarPaso(env, tenantId, phone, mensajeUsuario) {
 
   const pasoActual = pasos[sesion.paso_actual] || pasos[0];
 
+  // === SALIDA: "no gracias", "adiós", "cancelar"... cierran el flujo (solo si el flujo lo activa) ===
+  const salidaActiva = pasos.some(p => p && p.salida_inteligente);
+  const tieneRamaNo = pasoActual.tipo === 'pregunta' && (pasoActual.siguiente_no !== undefined || pasoActual.siguiente_paso_no !== undefined || pasoActual.goto_no !== undefined);
+  if (salidaActiva && sesion.paso_actual > 0 && !tieneRamaNo && RE_SALIDA.test((mensajeUsuario || '').trim())) {
+    await env.DB.prepare('UPDATE sgc_flu_Sesiones SET estado = "completada", updated_at = datetime("now") WHERE id = ?')
+      .bind(sesion.id).run();
+    const pasoSalida = pasos.find(p => p && p.mensaje_salida);
+    console.log(`[FLUJO] Salida del cliente ("${mensajeUsuario}") en paso ${sesion.paso_actual}: sesión cerrada`);
+    return {
+      flujo_activo: true,
+      respuesta: (pasoSalida && pasoSalida.mensaje_salida) || '¡Perfecto! Si cambias de opinión, aquí estoy para ayudarte. 😊',
+      paso_actual: sesion.paso_actual,
+      fin: true
+    };
+  }
+
+  // En una pregunta sí/no, una negativa ("no quiero agendar nada") toma la rama "no" en vez de irse a la IA
+  const negativaEnRamaNo = salidaActiva && tieneRamaNo && RE_SALIDA.test((mensajeUsuario || '').trim());
+
   // === MODO MIXTO: detectar si el mensaje está fuera del flujo ===
-  if (modo === 'mixto' && pasoActual.tipo === 'pregunta') {
+  if (modo === 'mixto' && pasoActual.tipo === 'pregunta' && !negativaEnRamaNo) {
     const msgLower = (mensajeUsuario || '').toLowerCase().trim();
     // Palabras que indican que el cliente está preguntando algo fuera del flujo
     const fueraDeFlujo = [
@@ -425,6 +521,16 @@ async function ejecutarPaso(env, tenantId, phone, mensajeUsuario) {
   }
 
   if (pasoActual.tipo === 'pregunta') {
+    // Validación opcional por paso (fecha, hora, nombre, si_no): si no sirve, se vuelve a preguntar
+    if (pasoActual.validar && !respuestaValida(pasoActual.validar, mensajeUsuario)) {
+      const aviso = pasoActual.mensaje_error || MSG_VALIDACION[pasoActual.validar] || 'No entendí tu respuesta.';
+      return {
+        flujo_activo: true,
+        respuesta: pasoActual.validar === 'si_no' ? aviso + '\n\n' + pasoActual.mensaje : aviso,
+        paso_actual: sesion.paso_actual,
+        fin: false
+      };
+    }
     // Guardar la respuesta del usuario en datos
     let valorRespuesta = mensajeUsuario.trim();
     
