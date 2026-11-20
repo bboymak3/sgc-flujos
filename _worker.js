@@ -897,8 +897,16 @@ export default {
           if (!user) return jsonError('No autorizado', 401);
         }
 
-        const { tenant_id, flujo_id, activo, custom_pasos_json, modo } = await request.json();
+        const bodyCfg = await request.json();
+        const { tenant_id, flujo_id, activo, modo } = bodyCfg;
+        let { custom_pasos_json } = bodyCfg;
         if (!tenant_id) return jsonError('tenant_id requerido', 400);
+        // Si no se envía custom_pasos_json y la plantilla no cambia (ej: solo se cambia modo o activo),
+        // se conserva el flujo personalizado existente en vez de borrarlo.
+        if (!('custom_pasos_json' in bodyCfg)) {
+          const prev = await env.DB.prepare('SELECT flujo_id, custom_pasos_json FROM sgc_flu_Config WHERE tenant_id = ?').bind(parseInt(tenant_id)).first();
+          if (prev && prev.custom_pasos_json && (prev.flujo_id || null) === (flujo_id || null)) custom_pasos_json = prev.custom_pasos_json;
+        }
 
         const modoVal = (modo === 'mixto' || modo === 'ia') ? modo : 'flujo';
         await env.DB.prepare(
