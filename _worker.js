@@ -43,6 +43,27 @@ async function verifyJWT(token) {
   }
 }
 
+// Contraseña de superadmin: se valida contra bot.makeseo.app (misma contraseña del superadmin),
+// así no hay contraseñas escritas en el código. Cache corto por proceso para no consultar en cada petición.
+const SUPERADMIN_OK_CACHE = new Map();
+async function esSuperadmin(request) {
+  const pwd = request.headers.get('X-Admin-Password') || '';
+  if (!pwd || pwd.length > 200) return false;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pwd));
+  const key = btoa(String.fromCharCode(...new Uint8Array(digest)));
+  const hit = SUPERADMIN_OK_CACHE.get(key);
+  if (hit && hit.exp > Date.now()) return hit.ok;
+  let ok = false;
+  try {
+    const r = await fetch('https://bot.makeseo.app/api/onboarding/list', { headers: { 'X-Admin-Password': pwd } });
+    ok = r.status === 200;
+  } catch (e) {
+    console.error('[AUTH] No se pudo validar con bot.makeseo.app:', e.message);
+  }
+  SUPERADMIN_OK_CACHE.set(key, { ok, exp: Date.now() + (ok ? 5 * 60 * 1000 : 30 * 1000) });
+  return ok;
+}
+
 async function getUser(request, env) {
   const auth = request.headers.get('Authorization');
   if (!auth || !auth.startsWith('Bearer ')) return null;
@@ -866,10 +887,9 @@ export default {
 
       // PUT /api/config — Actualizar config de flujo del tenant
       if (path === '/api/config' && method === 'PUT') {
-        // FIX FASE 3: aceptar auth por JWT (legacy) O por X-Admin-Password (como el superadmin)
-        const adminPwd = request.headers.get('X-Admin-Password');
-        const ADMIN_PWD_FLUJOS = 'admin123';
-        const isAdminViaPwd = (adminPwd === ADMIN_PWD_FLUJOS);
+        // Auth: JWT del panel de flujos O contraseña real de superadmin (validada contra bot.makeseo.app).
+        // Antes se aceptaba una contraseña fija escrita en el código.
+        const isAdminViaPwd = await esSuperadmin(request);
 
         let user = null;
         if (!isAdminViaPwd) {
